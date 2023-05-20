@@ -14,6 +14,7 @@ import org.springframework.batch.item.file.transform.LineAggregator;
 import org.springframework.batch.item.json.JacksonJsonObjectMarshaller;
 import org.springframework.batch.item.json.JsonFileItemWriter;
 import org.springframework.batch.item.support.CompositeItemProcessor;
+import org.springframework.batch.item.support.CompositeItemWriter;
 import org.springframework.batch.item.validator.ValidatingItemProcessor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -52,7 +53,7 @@ public class FlatFileJobTask {
     public Step Flatstep() throws Exception {
         return stepBuilderFactory.get("Flat-step").<Person,Person>chunk(10).reader(FlatFilereader())
                 .processor(validate())
-                .writer(FlatFilewriter())
+                .writer(compositeitemWriter())
                 .allowStartIfComplete(true)
                 .build();
     }
@@ -75,7 +76,7 @@ public class FlatFileJobTask {
         return reader;
     }
     private JsonFileItemWriter<Person> jsonwriter(){
-        FileSystemResource resource = new FileSystemResource("/target/persons.json");
+        FileSystemResource resource = new FileSystemResource("target/persons.json");
         JacksonJsonObjectMarshaller<Person>  mashaller = new JacksonJsonObjectMarshaller<>();
         JsonFileItemWriter<Person> personJsonFileItemWriter = new JsonFileItemWriter<>(resource, mashaller);
         personJsonFileItemWriter.setName("Jsonwriter");
@@ -105,5 +106,10 @@ public class FlatFileJobTask {
         check.setFilter(true);
         processor.setDelegates(Arrays.asList(flatFileProcess,check));
         return processor;
+    }
+    private CompositeItemWriter<Person> compositeitemWriter() throws Exception {
+        CompositeItemWriter<Person> writer = new CompositeItemWriter<>();
+        writer.setDelegates(Arrays.asList(jsonwriter(),FlatFilewriter()));
+       return writer;
     }
 }
