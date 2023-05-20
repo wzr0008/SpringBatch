@@ -5,11 +5,16 @@ import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.FlatFileItemWriter;
 import org.springframework.batch.item.file.mapping.DefaultLineMapper;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
 import org.springframework.batch.item.file.transform.LineAggregator;
+import org.springframework.batch.item.json.JacksonJsonObjectMarshaller;
+import org.springframework.batch.item.json.JsonFileItemWriter;
+import org.springframework.batch.item.support.CompositeItemProcessor;
+import org.springframework.batch.item.validator.ValidatingItemProcessor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -22,8 +27,10 @@ import org.springframework.stereotype.Component;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.List;
 
-
+@Configuration
 public class FlatFileJobTask {
     @Value("${FlatFileResource}")
     String fileInput;
@@ -35,14 +42,19 @@ public class FlatFileJobTask {
     StepBuilderFactory stepBuilderFactory;
     @Autowired
     FlatFileProcess flatFileProcess;
+    @Autowired
+    FlatFileValidate flatFileValidate;
     @Bean
     public Job FlatJob() throws Exception {
         return jobBuilderFactory.get("FlatJob").start(Flatstep()).build();
     }
     @Bean
     public Step Flatstep() throws Exception {
-        return stepBuilderFactory.get("Flat-step").<Person,Person>chunk(10).reader(FlatFilereader()).processor(flatFileProcess)
-                .writer(FlatFilewriter()).build();
+        return stepBuilderFactory.get("Flat-step").<Person,Person>chunk(10).reader(FlatFilereader())
+                .processor(validate())
+                .writer(FlatFilewriter())
+                .allowStartIfComplete(true)
+                .build();
     }
 
     private FlatFileItemReader<Person> FlatFilereader(){
@@ -62,6 +74,13 @@ public class FlatFileJobTask {
         reader.setLineMapper(mapper);
         return reader;
     }
+    private JsonFileItemWriter<Person> jsonwriter(){
+        FileSystemResource resource = new FileSystemResource("/target/persons.json");
+        JacksonJsonObjectMarshaller<Person>  mashaller = new JacksonJsonObjectMarshaller<>();
+        JsonFileItemWriter<Person> personJsonFileItemWriter = new JsonFileItemWriter<>(resource, mashaller);
+        personJsonFileItemWriter.setName("Jsonwriter");
+        return personJsonFileItemWriter;
+    }
     private FlatFileItemWriter<Person> FlatFilewriter() throws Exception {
         FlatFileItemWriter<Person> writer = new FlatFileItemWriter<>();
         FileSystemResource resource = new FileSystemResource(output);
@@ -79,5 +98,12 @@ public class FlatFileJobTask {
         writer.afterPropertiesSet();
         return writer;
     }
-
+    private CompositeItemProcessor<Person,Person> validate(){
+        CompositeItemProcessor<Person,Person> processor=new CompositeItemProcessor<>();
+        ValidatingItemProcessor<Person> check = new ValidatingItemProcessor<>();
+        check.setValidator(flatFileValidate);
+        check.setFilter(true);
+        processor.setDelegates(Arrays.asList(flatFileProcess,check));
+        return processor;
+    }
 }
