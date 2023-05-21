@@ -22,7 +22,6 @@ import javax.sql.DataSource;
 
 import java.util.Arrays;
 
-@Configuration
 public class JdbcBatchPractice {
     @Autowired
     JobBuilderFactory jobBuilderFactory;
