@@ -1,16 +1,20 @@
 package SpringBatchFinalPractice.demo;
 
 import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobExecutionListener;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.listener.CompositeJobExecutionListener;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.stream.IntStream;
 @Configuration
 public class SkipPractice {
@@ -20,10 +24,14 @@ public class SkipPractice {
     StepBuilderFactory stepBuilderFactory;
     @Autowired
     MySkipListener mySkipListener;
+    @Autowired
+    MyJobListener myJobListener;
+    @Autowired
+    MyJobListener2 myJobListener2;
     private int count=0;
     @Bean
     public Job job(){
-        return jobBuilderFactory.get("job").start(step1()).build();
+        return jobBuilderFactory.get("job").start(step1()).listener(composite()).build();
     }
     @Bean
     public Step step1(){
@@ -56,5 +64,10 @@ public class SkipPractice {
                 return item;
             }
         };
+    }
+    private CompositeJobExecutionListener composite(){
+        CompositeJobExecutionListener listener = new CompositeJobExecutionListener();
+        listener.setListeners(Arrays.asList(myJobListener,myJobListener2));
+        return listener;
     }
 }
